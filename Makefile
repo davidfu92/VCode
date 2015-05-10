@@ -2,16 +2,13 @@
 CC = gcc
 CFLAGS = -Wall
 
-all: tftpc tftpd
+all: server client
 
-tftpc: tftpc.c
-	$(CC) $(CFLAGS) -o tftpc tftpc.c
+server: server.c
+	$(CC) $(CFLAGS) -o server server.c
 
-tftpd: tftpd.c
-	$(CC) $(CFLAGS) -o tftpd tftpd.c
+client: client.c
+	$(CC) $(CFLAGS) -o client client.c
 
 clean:
-	rm -f tftpd tftpc
-
-strip:
-	strip tftpd tftpc
+	rm server
