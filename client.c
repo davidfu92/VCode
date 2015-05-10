@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <ncurses.h>
 
 #define BUFSIZE 1024
 
@@ -62,17 +63,65 @@ int main(int argc, char **argv) {
     
     /* get a message from the user */
     bzero(buf, BUFSIZE);
-    printf("Please enter msg: ");
+    printf("Please enter filename: ");
     fgets(buf, BUFSIZE, stdin);
-    
-    requestFile(sockfd, buf, serveraddr, serveraddr2, fp);
+    buf[strlen(buf)-1]='\0';
+
+    //requestFile(sockfd, buf, serveraddr, serveraddr2, fp);
+	fp = fopen(buf, "r+");
+	if(!fp){
+		printf("Can't open file\n");
+		return 0;
+	}
     setupWin(fp);
     
     return 0;
 }
 
 void setupWin(FILE* fp){
-	
+	char buf[1000];
+	char line[1000];
+	int x,y;
+	int ch;
+
+	initscr();
+	cbreak();
+	keypad(stdscr, TRUE);
+	printw("Editor\n\n");
+	while (fgets(buf,1000, fp)!=NULL)
+    	printw("%s",buf);
+	refresh();
+	while(true){
+		ch=getch();
+		getyx(stdscr,y,x);
+		switch(ch){
+			case KEY_LEFT:
+				if(x!=0)
+					move(y,x-1);
+				break;
+			case KEY_RIGHT:
+				move(y,x+1);
+				break;
+			case KEY_UP:
+				if(y!=0)
+					move(y-1,x);
+				break;
+			case KEY_DOWN:
+				move(y+1,x);
+				break;
+			case '\n':
+				move(y+1,x);
+				
+				break;	
+		}
+		//getstr(line);
+		//getyx(stdscr, y, x);
+		//mvprintw(1,0,"%s\n",line);
+		//move(y,x);
+		//refresh();
+	}
+	getch();
+	endwin();
 }
 
 void requestFile(int sock, char* name, struct sockaddr_in server, struct sockaddr_in server2, FILE * fp){
