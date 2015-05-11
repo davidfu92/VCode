@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 #define BUFSIZE 1024
-#define port 52015
+#define pport 5120
 
 
 
@@ -30,25 +30,33 @@ void error(char *msg) {
     exit(0);
 }
 
-int sockfd;
+int sockfd,sd;
 struct sockaddr_in serveraddr2;
 int serverlen2;
 char filename[100];
 char *username;
 int posx,posy;
 FILE *fp;
+struct sockaddr_in serveraddr;
 
 int main(int argc, char **argv)
 {
     int portno, n, serverlen;
-    struct sockaddr_in serveraddr;
+    struct addrinfo hints, *servinfo, *p;
+	int rv;
     struct hostent *server;
     char *hostname;
     char buf[BUFSIZE], rec[6144];
     pthread_t tid = -1;
     
+ struct  hostent  *ptrh;  /* pointer to a host table entry       */
+        struct  protoent *ptrp;  /* pointer to a protocol table entry   */
+        struct  sockaddr_in sad; /* structure to hold an IP address     */
+        int     sd;              /* socket descriptor                   */
+        int     port;            /* protocol port number                */
+        char    *host;           /* pointer to host name                */
     /* check command line arguments */
-    if (argc < 4) {
+    if (argc < 3) {
         fprintf(stderr,"usage: %s <username> <hostname> <port>\n", argv[0]);
         exit(0);
     }
@@ -57,27 +65,44 @@ int main(int argc, char **argv)
     if(argc>3)
         portno = atoi(argv[2]);
     else
-        portno = port;
+        portno = pport;
     
-    /* socket: create the socket */
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0)
-        error("ERROR opening socket");
-    
-    /* gethostbyname: get the server's DNS entry */
-    server = gethostbyname(hostname);
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host as %s\n", hostname);
-        exit(0);
-    }
-    
-    /* build the server's Internet address */
-    bzero(&serveraddr2, sizeof(serveraddr2));
-    bzero((char *) &serveraddr, sizeof(serveraddr));
-    serveraddr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr,
-          (char *)&serveraddr.sin_addr.s_addr, server->h_length);
-    serveraddr.sin_port = htons(portno);
+
+memset((char *)&sad,0,sizeof(sad)); /* clear sockaddr structure */
+        sad.sin_family = AF_INET;           /* set family to Internet   */
+
+        /* Set port number for ftfp                                     */
+
+        port = pport;
+	sad.sin_port = htons((u_short)port);
+
+        /* Check host argument and assign host name. */
+
+        host=hostname;
+
+        /* Convert host name to equivalent IP address and copy to sad. */
+
+        ptrh = gethostbyname(host);
+        if ( ((char *)ptrh) == NULL ) {
+                fprintf(stderr,"invalid host: %s\n", host);
+                exit(1);
+        }
+        memcpy(&sad.sin_addr, ptrh->h_addr, ptrh->h_length);
+
+        /* Map UDP transport protocol name to protocol number. */
+
+        if ( ((int)(ptrp = getprotobyname("udp"))) == 0) {
+                fprintf(stderr, "cannot map \"udp\" to protocol number");
+                exit(1);
+        }
+
+        /* Create a datagram socket; do not connect. */
+
+        sd = socket(PF_INET, SOCK_DGRAM, ptrp->p_proto);
+        if (sd < 0) {
+                fprintf(stderr, "socket creation failed\n");
+                exit(1);
+        }
     
     /* get a message from the user */
     bzero(buf, BUFSIZE);
@@ -94,12 +119,18 @@ int main(int argc, char **argv)
         return 0;
     }*/
 
-	//initial file request
-    requestFile();
+	//initial file reques
+    char packet[1024];
+    
+    int len = sprintf(packet, "%c%c%s%c%s%c", 0x01, 0x00, filename, 0x00, username ,0x00);
+    if(len==0)
+        error("Error in creating read packet\n");
+    if((sendto(sd, packet, len, 0, (struct sockaddr*) &sad ,sizeof(sad)))<0)
+        error("Error requesting file\n");
     
     //listen for packets
     while(true){
-        n=recvfrom (sockfd, rec, sizeof(rec), 0, (struct sockaddr*) &serveraddr2, &serverlen2);
+        n=recvfrom (sd, rec, sizeof(rec), 0, (struct sockaddr*) &serveraddr2, &serverlen2);
         if(n==-1)
             error("Error receiving packet from server\n");
         getFile(rec);//get the file
@@ -119,8 +150,8 @@ void requestFile(){
     int len = sprintf(packet, "%c%c%s%c%s%c", 0x01, 0x00, filename, 0x00, username ,0x00);
     if(len==0)
         error("Error in creating read packet\n");
-    if((sendto(sockfd, packet, sizeof(packet), 0, (struct sockaddr*) &serveraddr2, serverlen2))<0)
-        error("Error sending file\n");
+    if((sendto(sockfd, packet, sizeof(packet), 0, (struct sockaddr*) &serveraddr, serverlen2))<0)
+        error("Error requesting file\n");
     
 }
 void getFile(char* rec){
@@ -160,7 +191,7 @@ void sendFile(char* buf){
     if(len==0)
         error("Error in creating write packet\n");
     
-    if((sendto(sockfd, packet, len+1, 0, (struct sockaddr*) &serveraddr2, serverlen2))<0)
+    if((sendto(sd, packet, len+1, 0, (struct sockaddr*) &serveraddr2, serverlen2))<0)
         error("Error sending file\n");
 }
 
