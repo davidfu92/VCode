@@ -141,6 +141,7 @@ void getFile(char* rec){
     strncpy(recfilename, bufindex, sizeof (recfilename)-1);
     if(strcmp(filename,recfilename)!=0){
         printf("Received wrong file from server\n");
+		exit(0);
         return;
     }
     //get file
@@ -192,7 +193,7 @@ void *setupeditor(FILE* fp){
     //Read the file
     size_t size=fread(message,1,fileSize,fp);
     message[size]='\0'; // Add terminating zero.
-    
+    fclose(fp);
     //Print it again for debugging
     //printf("%s\n", contents);
     
